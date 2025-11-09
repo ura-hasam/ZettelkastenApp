@@ -1,5 +1,7 @@
 
 import 'package:flutter/material.dart';
+import 'package:myapp/note.dart';
+import 'package:uuid/uuid.dart';
 
 class NoteEditScreen extends StatefulWidget {
   const NoteEditScreen({super.key});
@@ -11,6 +13,24 @@ class NoteEditScreen extends StatefulWidget {
 class _NoteEditScreenState extends State<NoteEditScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
+  final Uuid _uuid = const Uuid();
+
+  void _saveNote() {
+    if (_titleController.text.isNotEmpty && _contentController.text.isNotEmpty) {
+      final newNote = Note(
+        id: _uuid.v4(),
+        title: _titleController.text,
+        content: _contentController.text,
+        createdAt: DateTime.now(),
+      );
+      Navigator.pop(context, newNote);
+    } else {
+      // Show an error or prevent saving if fields are empty
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Title and content cannot be empty.')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,10 +40,7 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: () {
-              // TODO: Save note
-              Navigator.pop(context);
-            },
+            onPressed: _saveNote,
           ),
         ],
       ),

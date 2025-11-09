@@ -1,6 +1,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:myapp/note.dart';
+import 'package:myapp/note_edit_screen.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -79,7 +81,7 @@ class MyApp extends StatelessWidget {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           foregroundColor: Colors.black,
-          backgroundColor: primarySeedColor,
+          backgroundColor: Colors.teal.shade200,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           textStyle: GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w500),
@@ -101,8 +103,28 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class MyHomePage extends StatelessWidget {
+class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});
+
+  @override
+  State<MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  final List<Note> _notes = [];
+
+  void _addNote() async {
+    final newNote = await Navigator.push<Note>(
+      context,
+      MaterialPageRoute(builder: (context) => const NoteEditScreen()),
+    );
+
+    if (newNote != null) {
+      setState(() {
+        _notes.add(newNote);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,17 +146,43 @@ class MyHomePage extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text('Welcome to Zettelkasten AI!', style: Theme.of(context).textTheme.displayLarge),
-            const SizedBox(height: 20),
-            Text('Create and link your notes with the power of AI.', style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 30),
-            ElevatedButton(onPressed: () {}, child: const Text('Create a New Note')),
-          ],
-        ),
+      body: _notes.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Text('Welcome to Zettelkasten AI!', style: Theme.of(context).textTheme.displayLarge),
+                  const SizedBox(height: 20),
+                  Text('Create and link your notes with the power of AI.', style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: 30),
+                  ElevatedButton(
+                    onPressed: _addNote,
+                    child: const Text('Create a New Note'),
+                  ),
+                ],
+              ),
+            )
+          : ListView.builder(
+              itemCount: _notes.length,
+              itemBuilder: (context, index) {
+                final note = _notes[index];
+                return ListTile(
+                  title: Text(note.title),
+                  subtitle: Text(
+                    note.content,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () {
+                    // TODO: Navigate to note details
+                  },
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addNote,
+        tooltip: 'New Note',
+        child: const Icon(Icons.add),
       ),
     );
   }
