@@ -6,10 +6,6 @@ This document outlines the plan for creating a Zettelkasten app. The app will al
 
 ## Current Plan
 
-### Milestone 2: Note-Taking and Management
-
-4.  **Note Persistence:** Store notes locally on the device.
-
 ### Milestone 3: AI-Powered Linking
 
 1.  **AI Integration:** Integrate a generative AI model for text analysis.
@@ -28,6 +24,7 @@ This document outlines the plan for creating a Zettelkasten app. The app will al
 
 ### Milestone 2: Note-Taking and Management
 
-*   **Note Model:** Defined a data model for the notes in `lib/note.dart`.
+*   **Note Model:** Defined a data model for the notes in `lib/note.dart` with JSON serialization.
 *   **Note Creation:** Implemented the UI for creating new notes in `lib/note_edit_screen.dart`.
 *   **Note Display:** Implemented a view to display a list of existing notes in `lib/main.dart`.
+*   **Note Persistence:** Stored notes locally on the device using `shared_preferences`.

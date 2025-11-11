@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/note.dart';
 import 'package:myapp/note_edit_screen.dart';
+import 'package:myapp/note_service.dart';
 import 'package:provider/provider.dart';
 
 void main() {
@@ -111,9 +112,25 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final List<Note> _notes = [];
+  final NoteService _noteService = NoteService();
+  List<Note> _notes = [];
+  bool _isLoading = true;
 
-  void _addNote() async {
+  @override
+  void initState() {
+    super.initState();
+    _loadNotes();
+  }
+
+  Future<void> _loadNotes() async {
+    final notes = await _noteService.getNotes();
+    setState(() {
+      _notes = notes;
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _addNote() async {
     final newNote = await Navigator.push<Note>(
       context,
       MaterialPageRoute(builder: (context) => const NoteEditScreen()),
@@ -123,6 +140,7 @@ class _MyHomePageState extends State<MyHomePage> {
       setState(() {
         _notes.add(newNote);
       });
+      await _noteService.saveNotes(_notes);
     }
   }
 
@@ -146,39 +164,41 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-      body: _notes.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Text('Welcome to Zettelkasten AI!', style: Theme.of(context).textTheme.displayLarge),
-                  const SizedBox(height: 20),
-                  Text('Create and link your notes with the power of AI.', style: Theme.of(context).textTheme.bodyMedium),
-                  const SizedBox(height: 30),
-                  ElevatedButton(
-                    onPressed: _addNote,
-                    child: const Text('Create a New Note'),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _notes.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Text('Welcome to Zettelkasten AI!', style: Theme.of(context).textTheme.displayLarge),
+                      const SizedBox(height: 20),
+                      Text('Create and link your notes with the power of AI.', style: Theme.of(context).textTheme.bodyMedium),
+                      const SizedBox(height: 30),
+                      ElevatedButton(
+                        onPressed: _addNote,
+                        child: const Text('Create a New Note'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              itemCount: _notes.length,
-              itemBuilder: (context, index) {
-                final note = _notes[index];
-                return ListTile(
-                  title: Text(note.title),
-                  subtitle: Text(
-                    note.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  onTap: () {
-                    // TODO: Navigate to note details
+                )
+              : ListView.builder(
+                  itemCount: _notes.length,
+                  itemBuilder: (context, index) {
+                    final note = _notes[index];
+                    return ListTile(
+                      title: Text(note.title),
+                      subtitle: Text(
+                        note.content,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () {
+                        // TODO: Navigate to note details
+                      },
+                    );
                   },
-                );
-              },
-            ),
+                ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addNote,
         tooltip: 'New Note',
