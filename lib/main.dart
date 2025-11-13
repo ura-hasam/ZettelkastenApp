@@ -1,4 +1,5 @@
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:myapp/note.dart';
@@ -119,34 +120,21 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final NoteService _noteService = NoteService();
-  List<Note> _notes = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadNotes();
-  }
-
-  Future<void> _loadNotes() async {
-    final notes = await _noteService.getNotes();
-    setState(() {
-      _notes = notes;
-      _isLoading = false;
-    });
-  }
 
   Future<void> _addNote() async {
-    final newNote = await Navigator.push<Note>(
+    // Navigate to the edit screen and wait for a result
+    final newNoteData = await Navigator.push<Map<String, String>>(
       context,
       MaterialPageRoute(builder: (context) => const NoteEditScreen()),
     );
 
-    if (newNote != null) {
-      setState(() {
-        _notes.add(newNote);
-      });
-      await _noteService.saveNotes(_notes);
+    if (newNoteData != null && newNoteData['title']!.isNotEmpty) {
+      final newNote = Note(
+        title: newNoteData['title']!,
+        content: newNoteData['content']!,
+        createdAt: DateTime.now(),
+      );
+      await _noteService.addNote(newNote);
     }
   }
 
@@ -170,41 +158,56 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _notes.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      Text('Welcome to Zettelkasten AI!', style: Theme.of(context).textTheme.displayLarge),
-                      const SizedBox(height: 20),
-                      Text('Create and link your notes with the power of AI.', style: Theme.of(context).textTheme.bodyMedium),
-                      const SizedBox(height: 30),
-                      ElevatedButton(
-                        onPressed: _addNote,
-                        child: const Text('Create a New Note'),
-                      ),
-                    ],
+      body: StreamBuilder<QuerySnapshot<Note>>(
+        stream: _noteService.getNotesStream(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Something went wrong: ${snapshot.error}'));
+          }
+
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final notes = snapshot.data?.docs.map((doc) => doc.data()).toList() ?? [];
+
+          if (notes.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  Text('Welcome to Zettelkasten AI!', style: Theme.of(context).textTheme.displayLarge),
+                  const SizedBox(height: 20),
+                  Text('Create and link your notes with the power of AI.', style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: 30),
+                  ElevatedButton(
+                    onPressed: _addNote,
+                    child: const Text('Create a New Note'),
                   ),
-                )
-              : ListView.builder(
-                  itemCount: _notes.length,
-                  itemBuilder: (context, index) {
-                    final note = _notes[index];
-                    return ListTile(
-                      title: Text(note.title),
-                      subtitle: Text(
-                        note.content,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      onTap: () {
-                        // TODO: Navigate to note details
-                      },
-                    );
-                  },
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            itemCount: notes.length,
+            itemBuilder: (context, index) {
+              final note = notes[index];
+              return ListTile(
+                title: Text(note.title),
+                subtitle: Text(
+                  note.content,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
+                onTap: () {
+                  // TODO: Navigate to note details for editing
+                },
+              );
+            },
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addNote,
         tooltip: 'New Note',

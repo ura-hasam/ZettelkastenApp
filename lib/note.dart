@@ -1,34 +1,36 @@
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Note {
-  final String id;
+  final String? id;
   final String title;
   final String content;
   final DateTime createdAt;
 
   Note({
-    required this.id,
+    this.id,
     required this.title,
     required this.content,
     required this.createdAt,
   });
 
-  // fromJson factory constructor
-  factory Note.fromJson(Map<String, dynamic> json) {
+  // FirestoreのドキュメントからNoteオブジェクトを生成するファクトリコンストラクタ
+  factory Note.fromFirestore(DocumentSnapshot<Map<String, dynamic>> snapshot, SnapshotOptions? options) {
+    final data = snapshot.data();
     return Note(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      content: json['content'] as String,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      id: snapshot.id,
+      title: data?['title'] ?? '',
+      content: data?['content'] ?? '',
+      createdAt: (data?['createdAt'] as Timestamp).toDate(),
     );
   }
 
-  // toJson method
-  Map<String, dynamic> toJson() {
+  // NoteオブジェクトをFirestoreに保存するためのMapに変換するメソッド
+  Map<String, dynamic> toFirestore() {
     return {
-      'id': id,
-      'title': title,
-      'content': content,
-      'createdAt': createdAt.toIso8601String(),
+      "title": title,
+      "content": content,
+      "createdAt": Timestamp.fromDate(createdAt),
     };
   }
 }
