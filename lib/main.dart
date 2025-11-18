@@ -122,7 +122,6 @@ class _MyHomePageState extends State<MyHomePage> {
   final NoteService _noteService = NoteService();
 
   Future<void> _addNote() async {
-    // Navigate to the edit screen and wait for a result
     final newNoteData = await Navigator.push<Map<String, String>>(
       context,
       MaterialPageRoute(builder: (context) => const NoteEditScreen()),
@@ -137,6 +136,24 @@ class _MyHomePageState extends State<MyHomePage> {
       await _noteService.addNote(newNote);
     }
   }
+
+  Future<void> _editNote(Note note) async {
+    final updatedNoteData = await Navigator.push<Map<String, String>>(
+      context,
+      MaterialPageRoute(builder: (context) => NoteEditScreen(note: note)),
+    );
+
+    if (updatedNoteData != null) {
+      final updatedNote = Note(
+        id: note.id, // Keep the original ID
+        title: updatedNoteData['title']!,
+        content: updatedNoteData['content']!,
+        createdAt: note.createdAt, // Keep the original creation date
+      );
+      await _noteService.updateNote(updatedNote);
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -169,9 +186,10 @@ class _MyHomePageState extends State<MyHomePage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final notes = snapshot.data?.docs.map((doc) => doc.data()).toList() ?? [];
+          // Use the snapshot to get the full DocumentSnapshot
+          final noteDocs = snapshot.data?.docs ?? [];
 
-          if (notes.isEmpty) {
+          if (noteDocs.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -190,9 +208,10 @@ class _MyHomePageState extends State<MyHomePage> {
           }
 
           return ListView.builder(
-            itemCount: notes.length,
+            itemCount: noteDocs.length,
             itemBuilder: (context, index) {
-              final note = notes[index];
+              // Get the note object from the document snapshot
+              final note = noteDocs[index].data();
               return ListTile(
                 title: Text(note.title),
                 subtitle: Text(
@@ -200,9 +219,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                onTap: () {
-                  // TODO: Navigate to note details for editing
-                },
+                onTap: () => _editNote(note),
               );
             },
           );

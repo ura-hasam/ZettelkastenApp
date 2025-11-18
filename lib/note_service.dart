@@ -23,12 +23,13 @@ class NoteService {
     return _notesRef.add(note);
   }
 
-  // (参考) 将来的に必要になるかもしれない機能
-  // Future<void> updateNote(Note note) {
-  //   return _notesRef.doc(note.id).update(note.toFirestore());
-  // }
+  // ノートを更新する
+  Future<void> updateNote(Note note) {
+    return _notesRef.doc(note.id).update(note.toFirestore());
+  }
 
-  // Future<void> deleteNote(String noteId) {
-  //   return _notesRef.doc(noteId).delete();
-  // }
+  // ノートを削除する
+  Future<void> deleteNote(String noteId) {
+    return _notesRef.doc(noteId).delete();
+  }
 }

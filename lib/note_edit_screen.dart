@@ -1,8 +1,11 @@
 
 import 'package:flutter/material.dart';
+import 'package:myapp/note.dart';
 
 class NoteEditScreen extends StatefulWidget {
-  const NoteEditScreen({super.key});
+  final Note? note;
+
+  const NoteEditScreen({super.key, this.note});
 
   @override
   _NoteEditScreenState createState() => _NoteEditScreenState();
@@ -11,6 +14,15 @@ class NoteEditScreen extends StatefulWidget {
 class _NoteEditScreenState extends State<NoteEditScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.note != null) {
+      _titleController.text = widget.note!.title;
+      _contentController.text = widget.note!.content;
+    }
+  }
 
   void _saveNote() {
     if (_titleController.text.isNotEmpty) {
@@ -28,9 +40,11 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isEditing = widget.note != null;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('New Note'),
+        title: Text(isEditing ? 'Edit Note' : 'New Note'),
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
@@ -45,7 +59,7 @@ class _NoteEditScreenState extends State<NoteEditScreen> {
           children: [
             TextField(
               controller: _titleController,
-              autofocus: true,
+              autofocus: !isEditing, // Only autofocus for new notes
               decoration: const InputDecoration(
                 labelText: 'Title',
                 border: OutlineInputBorder(),
