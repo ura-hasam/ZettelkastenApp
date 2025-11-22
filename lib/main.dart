@@ -154,6 +154,18 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future<void> _deleteNote(String noteId) async {
+    try {
+      await _noteService.deleteNote(noteId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Note deleted')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting note: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -186,7 +198,6 @@ class _MyHomePageState extends State<MyHomePage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          // Use the snapshot to get the full DocumentSnapshot
           final noteDocs = snapshot.data?.docs ?? [];
 
           if (noteDocs.isEmpty) {
@@ -210,16 +221,30 @@ class _MyHomePageState extends State<MyHomePage> {
           return ListView.builder(
             itemCount: noteDocs.length,
             itemBuilder: (context, index) {
-              // Get the note object from the document snapshot
               final note = noteDocs[index].data();
-              return ListTile(
-                title: Text(note.title),
-                subtitle: Text(
-                  note.content,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+              return Dismissible(
+                key: Key(note.id!), // Must be a unique key
+                onDismissed: (direction) {
+                  _deleteNote(note.id!);
+                },
+                background: Container(
+                  color: Colors.red.shade400,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: const Icon(
+                    Icons.delete,
+                    color: Colors.white,
+                  ),
                 ),
-                onTap: () => _editNote(note),
+                child: ListTile(
+                  title: Text(note.title),
+                  subtitle: Text(
+                    note.content,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  onTap: () => _editNote(note),
+                ),
               );
             },
           );
