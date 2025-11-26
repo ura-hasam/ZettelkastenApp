@@ -1,4 +1,5 @@
 
+import 'dart:developer' as developer;
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:myapp/note.dart';
 
@@ -39,8 +40,15 @@ class AiService {
       }
       return '';
 
-    } catch (e) {
-      print('Error classifying notes: $e');
+    } catch (e, s) {
+      // 構造化ログに変更
+      developer.log(
+        'AI classification failed',
+        name: 'com.example.myapp.AiService',
+        level: 1000, // SEVERE
+        error: e,
+        stackTrace: s,
+      );
       return ''; // エラーの場合は空の文字列を返す
     }
   }

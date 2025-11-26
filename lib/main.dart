@@ -1,5 +1,6 @@
 
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -137,7 +138,7 @@ class _MyHomePageState extends State<MyHomePage> {
         title: newNoteData['title']!,
         content: newNoteData['content']!,
         createdAt: DateTime.now(),
-        category: 'Uncategorized', // 新規ノートは未分類に
+        category: 'Uncategorized',
       );
       await _noteService.addNote(newNote);
     }
@@ -166,7 +167,14 @@ class _MyHomePageState extends State<MyHomePage> {
           const SnackBar(content: Text('Note deleted')),
         );
       }
-    } catch (e) {
+    } catch (e, s) {
+      developer.log(
+        'Failed to delete note',
+        name: 'com.example.myapp.MyHomePage',
+        level: 1000,
+        error: e,
+        stackTrace: s,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error deleting note: $e')),
@@ -176,7 +184,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _classifyNotes() async {
-    if (_isClassifying) return; // 処理中の多重実行を防ぐ
+    if (_isClassifying) return;
 
     setState(() {
       _isClassifying = true;
@@ -187,27 +195,25 @@ class _MyHomePageState extends State<MyHomePage> {
     );
 
     try {
-      // 1. 全てのノートを取得
       final allNotesSnapshot = await _noteService.getNotesStream().first;
       final allNotes = allNotesSnapshot.docs.map((doc) => doc.data()).toList();
 
       if (allNotes.length < 2) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('You need at least 2 notes to classify.')),
-        );
+        if(mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('You need at least 2 notes to classify.')),
+          );
+        }
         return;
       }
 
-      // 2. AI Serviceを呼び出して分類させる
       final jsonResponse = await _aiService.classifyNotes(allNotes);
       if (jsonResponse.isEmpty) {
         throw Exception('AI did not return a valid classification.');
       }
 
-      // 3. AIからのJSONレスポンスをパースする
       final List<dynamic> classifications = jsonDecode(jsonResponse);
 
-      // 4. バッチ処理でFirestoreを効率的に更新
       final WriteBatch batch = FirebaseFirestore.instance.batch();
 
       for (var classification in classifications) {
@@ -222,13 +228,25 @@ class _MyHomePageState extends State<MyHomePage> {
 
       await batch.commit();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Classification complete!')),
+      if(mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Classification complete!')),
+        );
+      }
+
+    } catch (e, s) {
+        developer.log(
+        'Error during classification',
+        name: 'com.example.myapp.MyHomePage',
+        level: 1000,
+        error: e,
+        stackTrace: s,
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error during classification: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error during classification: $e')),
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -257,7 +275,7 @@ class _MyHomePageState extends State<MyHomePage> {
             )
           else
             IconButton(
-              icon: const Icon(Icons.auto_awesome_mosaic_outlined), // 分類アイコン
+              icon: const Icon(Icons.auto_awesome_mosaic_outlined),
               onPressed: _classifyNotes,
               tooltip: 'Classify Notes',
             ),
@@ -277,6 +295,13 @@ class _MyHomePageState extends State<MyHomePage> {
         stream: _noteService.getNotesStream(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
+             developer.log(
+              'Error in notes stream',
+              name: 'com.example.myapp.MyHomePage.StreamBuilder',
+              level: 1000,
+              error: snapshot.error,
+              stackTrace: snapshot.stackTrace,
+            );
             return Center(child: Text('Something went wrong: ${snapshot.error}'));
           }
 
@@ -344,7 +369,7 @@ class _MyHomePageState extends State<MyHomePage> {
                 ),
               );
             },
-            order: GroupedListOrder.ASC, // カテゴリ名で昇順ソート
+            order: GroupedListOrder.ASC,
           );
         },
       ),
