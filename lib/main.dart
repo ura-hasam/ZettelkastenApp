@@ -1,13 +1,16 @@
 
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:myapp/ai_service.dart';
 import 'package:myapp/note.dart';
 import 'package:myapp/note_edit_screen.dart';
 import 'package:myapp/note_service.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart'; // This will be generated
+import 'package:grouped_list/grouped_list.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -120,6 +123,8 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   final NoteService _noteService = NoteService();
+  final AiService _aiService = AiService();
+  bool _isClassifying = false;
 
   Future<void> _addNote() async {
     final newNoteData = await Navigator.push<Map<String, String>>(
@@ -132,6 +137,7 @@ class _MyHomePageState extends State<MyHomePage> {
         title: newNoteData['title']!,
         content: newNoteData['content']!,
         createdAt: DateTime.now(),
+        category: 'Uncategorized', // 新規ノートは未分類に
       );
       await _noteService.addNote(newNote);
     }
@@ -144,11 +150,9 @@ class _MyHomePageState extends State<MyHomePage> {
     );
 
     if (updatedNoteData != null) {
-      final updatedNote = Note(
-        id: note.id, // Keep the original ID
+      final updatedNote = note.copyWith(
         title: updatedNoteData['title']!,
         content: updatedNoteData['content']!,
-        createdAt: note.createdAt, // Keep the original creation date
       );
       await _noteService.updateNote(updatedNote);
     }
@@ -157,13 +161,80 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> _deleteNote(String noteId) async {
     try {
       await _noteService.deleteNote(noteId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Note deleted')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting note: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _classifyNotes() async {
+    if (_isClassifying) return; // 処理中の多重実行を防ぐ
+
+    setState(() {
+      _isClassifying = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('AI is classifying your notes...')),
+    );
+
+    try {
+      // 1. 全てのノートを取得
+      final allNotesSnapshot = await _noteService.getNotesStream().first;
+      final allNotes = allNotesSnapshot.docs.map((doc) => doc.data()).toList();
+
+      if (allNotes.length < 2) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You need at least 2 notes to classify.')),
+        );
+        return;
+      }
+
+      // 2. AI Serviceを呼び出して分類させる
+      final jsonResponse = await _aiService.classifyNotes(allNotes);
+      if (jsonResponse.isEmpty) {
+        throw Exception('AI did not return a valid classification.');
+      }
+
+      // 3. AIからのJSONレスポンスをパースする
+      final List<dynamic> classifications = jsonDecode(jsonResponse);
+
+      // 4. バッチ処理でFirestoreを効率的に更新
+      final WriteBatch batch = FirebaseFirestore.instance.batch();
+
+      for (var classification in classifications) {
+        final noteId = classification['id'];
+        final category = classification['category'];
+
+        if (noteId != null && category != null) {
+          final noteRef = _noteService.notesCollection.doc(noteId);
+          batch.update(noteRef, {'category': category});
+        }
+      }
+
+      await batch.commit();
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Note deleted')),
+        const SnackBar(content: Text('Classification complete!')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error deleting note: $e')),
+        SnackBar(content: Text('Error during classification: $e')),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isClassifying = false;
+        });
+      }
     }
   }
 
@@ -175,6 +246,21 @@ class _MyHomePageState extends State<MyHomePage> {
       appBar: AppBar(
         title: const Text('Zettelkasten AI'),
         actions: [
+          if (_isClassifying)
+            const Padding(
+              padding: EdgeInsets.only(right: 12.0),
+              child: SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.auto_awesome_mosaic_outlined), // 分類アイコン
+              onPressed: _classifyNotes,
+              tooltip: 'Classify Notes',
+            ),
           IconButton(
             icon: Icon(themeProvider.themeMode == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode),
             onPressed: () => themeProvider.toggleTheme(),
@@ -198,9 +284,9 @@ class _MyHomePageState extends State<MyHomePage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final noteDocs = snapshot.data?.docs ?? [];
+          final notes = snapshot.data?.docs.map((doc) => doc.data()).toList() ?? [];
 
-          if (noteDocs.isEmpty) {
+          if (notes.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -218,35 +304,47 @@ class _MyHomePageState extends State<MyHomePage> {
             );
           }
 
-          return ListView.builder(
-            itemCount: noteDocs.length,
-            itemBuilder: (context, index) {
-              final note = noteDocs[index].data();
-              return Dismissible(
-                key: Key(note.id!), // Must be a unique key
-                onDismissed: (direction) {
-                  _deleteNote(note.id!);
-                },
-                background: Container(
-                  color: Colors.red.shade400,
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                  child: const Icon(
-                    Icons.delete,
-                    color: Colors.white,
+          return GroupedListView<Note, String>(
+            elements: notes,
+            groupBy: (note) => note.category ?? 'Uncategorized',
+            groupSeparatorBuilder: (String groupByValue) => Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              child: Text(
+                groupByValue,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+              ),
+            ),
+            itemBuilder: (context, Note note) {
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                child: Dismissible(
+                  key: Key(note.id!),
+                  onDismissed: (direction) {
+                    _deleteNote(note.id!);
+                  },
+                  background: Container(
+                    color: Colors.red.shade400,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                    child: const Icon(Icons.delete, color: Colors.white),
                   ),
-                ),
-                child: ListTile(
-                  title: Text(note.title),
-                  subtitle: Text(
-                    note.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  child: ListTile(
+                    title: Text(note.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text(
+                      note.content,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onTap: () => _editNote(note),
                   ),
-                  onTap: () => _editNote(note),
                 ),
               );
             },
+            order: GroupedListOrder.ASC, // カテゴリ名で昇順ソート
           );
         },
       ),
